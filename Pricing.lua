@@ -105,7 +105,7 @@ function ns.WritItem(writID)
 end
 
 function ns.OrderName(r)
-    local name = ns.ItemName(r.itemID, r.writ.name)
+    local name = ns.ItemName(r.itemID, r.writ.itemName or r.writ.name)
     if r.qty > 1 then return ("x%d %s"):format(r.qty, name) end
     return name
 end
@@ -168,17 +168,22 @@ local function SortResults(a, b)
 end
 
 -- ------------------------------------------------------------
--- A tier's sorted list, top-3 ranks and sealed-writ summary.
--- Cached until ns.Invalidate() bumps ns.cacheGen.
+-- A tier's sorted list, top-3 ranks and sealed-writ summary,
+-- optionally limited to one customer zone. Ranks are within the
+-- zone. The sealed-writ average always covers the whole tier,
+-- because a sealed writ can open into any order.
+-- Cached per tier and zone until ns.Invalidate() bumps ns.cacheGen.
 -- ------------------------------------------------------------
 local cache = {}
 
-function ns.TierResults(tierKey)
-    local c = cache[tierKey]
+function ns.TierResults(tierKey, zoneKey)
+    if zoneKey == nil then zoneKey = ns.ZONE_ALL end
+    local cacheKey = tierKey .. "|" .. zoneKey
+    local c = cache[cacheKey]
     if c and c.gen == ns.cacheGen then return c end
 
     local tier = ns.TIER_BY_KEY[tierKey]
-    local list, hidden = {}, 0
+    local list, hidden, inZone = {}, 0, 0
     local fillSum, fillCount = 0, 0
 
     for _, id in ipairs(tier.ids) do
@@ -187,10 +192,13 @@ function ns.TierResults(tierKey)
         if r.itemTotal then
             fillSum, fillCount = fillSum + r.itemTotal, fillCount + 1
         end
-        if ns.db.hideDone and r.done then
-            hidden = hidden + 1
-        else
-            list[#list + 1] = r
+        if zoneKey == ns.ZONE_ALL or r.writ.zoneKey == zoneKey then
+            inZone = inZone + 1
+            if ns.db.hideDone and r.done then
+                hidden = hidden + 1
+            else
+                list[#list + 1] = r
+            end
         end
     end
     table.sort(list, SortResults)
@@ -206,6 +214,8 @@ function ns.TierResults(tierKey)
     c = {
         gen         = ns.cacheGen,
         tier        = tier,
+        zone        = zoneKey,
+        inZone      = inZone,
         list        = list,
         rank        = rank,
         priced      = priced,
@@ -242,7 +252,7 @@ function ns.SearchAuctionator(writID)
     local w = ns.WRITS[writID]
     local itemID = ns.WritItem(writID)
     local terms = { ns.ItemName(writID, "Craftsman's Writ: " .. w.name) }
-    if itemID then terms[2] = ns.ItemName(itemID, w.name) end
+    if itemID then terms[2] = ns.ItemName(itemID, w.itemName or w.name) end
     local ok, err = pcall(search, addonName, terms)
     if not ok then ns.Print("Auctionator search failed: %s", tostring(err)) end
 end

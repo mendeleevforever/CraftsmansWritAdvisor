@@ -22,6 +22,7 @@ ns.DEFAULTS = {
     pouchNet    = false, -- subtract the estimated coin pouch from the total
     tooltip     = true,  -- add the cost breakdown to writ tooltips
     staleDays   = 7,     -- flag prices older than this many days
+    zoneFilter  = "ALL", -- customer zone shown in the window (ns.ZONE_ALL = every zone)
     window      = {},    -- saved window position
     overrides   = {},    -- [writID] = { item = itemID, qty = n }
 }
@@ -154,6 +155,9 @@ function handlers.ADDON_LOADED(name)
     if type(saved) ~= "table" then saved = {} end
     CraftsmansWritAdvisorDB = MergeDefaults(saved, ns.DEFAULTS)
     ns.db = CraftsmansWritAdvisorDB
+    if ns.db.zoneFilter ~= ns.ZONE_ALL and not ns.ZONE_BY_KEY[ns.db.zoneFilter] then
+        ns.db.zoneFilter = ns.ZONE_ALL -- zone no longer in the data
+    end
     eventFrame:UnregisterEvent("ADDON_LOADED")
 end
 
@@ -246,6 +250,7 @@ function commands.help()
     ns.Print("commands:")
     print("  /cwa                Toggle the writ list")
     print("  /cwa best           Print the cheapest order of each tier")
+    print("  /cwa zone [name]    Show one customer zone (now: " .. ns.ZoneLabel(ns.db.zoneFilter) .. "); no name lists zones")
     print("  /cwa rows <n|all>   Orders shown per tier (now: " .. (ns.db.rowsPerTier == 0 and "all" or ns.db.rowsPerTier) .. ")")
     print("  /cwa done           Hide orders delivered today (" .. OnOff(ns.db.hideDone) .. ")")
     print("  /cwa owned          Writs/items in your bags count as free (" .. OnOff(ns.db.ownedFree) .. ")")
@@ -262,15 +267,61 @@ end
 function commands.show() ns.ToggleWindow(true) end
 
 function commands.best()
+    local zone = ns.db.zoneFilter
+    if zone ~= ns.ZONE_ALL then
+        ns.Print("Cheapest orders delivered in %s:", ns.ZoneLabel(zone))
+    end
     for _, tier in ipairs(ns.TIERS) do
-        local res = ns.TierResults(tier.key)
+        local res = ns.TierResults(tier.key, zone)
         local b = res.best
         if b then
             ns.Print("%s: %s - %s total, %s per rep%s", tier.key, ns.OrderName(b),
                 ns.Coins(b.total), ns.Coins(b.perRep), b.writ.zone and (" - " .. b.writ.zone) or "")
+        elseif res.inZone == 0 then
+            ns.Print("%s: no orders in this zone.", tier.key)
         else
             ns.Print("%s: no order has both a writ price and an item price yet. Scan the AH with Auctionator.", tier.key)
         end
+    end
+end
+
+-- /cwa zone            list zones and counts
+-- /cwa zone all        show every zone
+-- /cwa zone <text>     exact name, or the one zone whose name contains <text>
+function commands.zone(arg)
+    arg = strtrim(arg or ""):lower()
+    if arg == "" then
+        ns.Print("Showing: %s. Zones (orders):", ns.ZoneLabel(ns.db.zoneFilter))
+        local parts = {}
+        for _, z in ipairs(ns.ZONES) do parts[#parts + 1] = ("%s (%d)"):format(z.label, z.count) end
+        print("  " .. table.concat(parts, ", "))
+        return
+    end
+    if arg == "all" then
+        ns.SetZoneFilter(ns.ZONE_ALL)
+        ns.Print("Showing all zones.")
+        return
+    end
+    local exact, matches = nil, {}
+    for _, z in ipairs(ns.ZONES) do
+        local label = z.label:lower()
+        if label == arg then exact = z end
+        if label:find(arg, 1, true) then matches[#matches + 1] = z end
+    end
+    local pick = exact or (#matches == 1 and matches[1]) or nil
+    if pick then
+        ns.SetZoneFilter(pick.key)
+        if pick.key == ns.ZONE_UNKNOWN then
+            ns.Print("Showing orders with no known customer yet.")
+        else
+            ns.Print("Showing orders delivered in %s.", pick.label)
+        end
+    elseif #matches == 0 then
+        ns.Print("No zone matches '%s'. Type /cwa zone to list them.", arg)
+    else
+        local names = {}
+        for _, z in ipairs(matches) do names[#names + 1] = z.label end
+        ns.Print("'%s' matches %s. Be more specific.", arg, table.concat(names, ", "))
     end
 end
 
@@ -400,6 +451,7 @@ function ns.Probe()
         .. "   C_EventUtils.IsEventValid: " .. Has(C_EventUtils and C_EventUtils.IsEventValid)
         .. "   HandleModifiedItemClick: " .. Has(HandleModifiedItemClick)
         .. "   AddonCompartmentFrame: " .. Has(AddonCompartmentFrame))
+    print("  Zone dropdown: " .. (ns.zoneDropdownStyle or "not built yet (open /cwa first)"))
     if ns.missingEvents then
         print("  Events this build rejected:" .. ns.missingEvents)
     end

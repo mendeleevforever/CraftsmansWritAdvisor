@@ -6,7 +6,7 @@ local addonName, ns = ...
 -- ============================================================
 
 local FRAME_NAME = "CraftsmansWritAdvisorFrame"
-local WINDOW_W, WINDOW_H = 900, 640
+local WINDOW_W, WINDOW_H = 900, 666
 local ROW_H, SECTION_H, MORE_H = 18, 40, 16
 local SCROLL_LEFT = 20
 local CHILD_W = 830
@@ -171,6 +171,103 @@ local function HideSection(sec)
 end
 
 -- ------------------------------------------------------------
+-- Customer zone filter. Uses Blizzard's dropdown menu
+-- (WowStyle1DropdownTemplate) when the client has it, and falls
+-- back to a button that cycles through the zones.
+-- ------------------------------------------------------------
+local zoneDropdown, zoneCycle
+
+local function RefreshZoneControl()
+    if zoneDropdown then
+        zoneDropdown:GenerateMenu()
+    elseif zoneCycle then
+        zoneCycle:SetText(ns.ZoneLabel(ns.db.zoneFilter))
+    end
+end
+
+function ns.SetZoneFilter(key, fromMenu)
+    if key ~= ns.ZONE_ALL and not ns.ZONE_BY_KEY[key] then key = ns.ZONE_ALL end
+    ns.db.zoneFilter = key
+    if MainFrame then MainFrame.scroll:SetVerticalScroll(0) end
+    if fromMenu and C_Timer and C_Timer.After then
+        C_Timer.After(0, RefreshZoneControl) -- let the menu close first
+    else
+        RefreshZoneControl()
+    end
+    ns.Invalidate()
+end
+
+local function ZoneMenuText(z)
+    return ("%s  |cff9c8d70(%d)|r"):format(z.label, z.count)
+end
+
+local function BuildZoneDropdown(f, anchor)
+    local ok, dd = pcall(CreateFrame, "DropdownButton", nil, f, "WowStyle1DropdownTemplate")
+    if not ok or not dd then return false end
+    if not dd.SetupMenu or not dd.GenerateMenu then
+        dd:Hide()
+        return false
+    end
+    dd:SetPoint("LEFT", anchor, "RIGHT", 8, 0)
+    dd:SetWidth(230)
+    if dd.SetSelectionTranslator then
+        dd:SetSelectionTranslator(function() return ns.ZoneLabel(ns.db.zoneFilter) end)
+    end
+    dd:SetupMenu(function(_, root)
+        if root.SetTag then root:SetTag("MENU_CRAFTSMANSWRITADVISOR_ZONE") end
+        local function IsSelected(key) return ns.db.zoneFilter == key end
+        local function SetSelected(key) ns.SetZoneFilter(key, true) end
+        root:CreateRadio("All zones", IsSelected, SetSelected, ns.ZONE_ALL)
+        if root.CreateDivider then root:CreateDivider() end
+        for _, z in ipairs(ns.ZONES) do
+            root:CreateRadio(ZoneMenuText(z), IsSelected, SetSelected, z.key)
+        end
+        if root.SetScrollMode then root:SetScrollMode(20 * 18) end
+    end)
+    zoneDropdown = dd
+    ns.zoneDropdownStyle = "Blizzard dropdown menu"
+    return true
+end
+
+local function BuildZoneCycleButton(f, anchor)
+    local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    btn:SetSize(230, 22)
+    btn:SetPoint("LEFT", anchor, "RIGHT", 8, 0)
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    btn:SetScript("OnClick", function(_, button)
+        local keys = { ns.ZONE_ALL }
+        local current = 1
+        for _, z in ipairs(ns.ZONES) do keys[#keys + 1] = z.key end
+        for i, k in ipairs(keys) do
+            if k == ns.db.zoneFilter then current = i end
+        end
+        local step = (button == "RightButton") and -1 or 1
+        ns.SetZoneFilter(keys[((current - 1 + step) % #keys) + 1])
+    end)
+    btn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Customer zone")
+        GameTooltip:AddLine("Left-click for the next zone, right-click for the previous one.", 1, 1, 1, true)
+        GameTooltip:AddLine("/cwa zone <name> jumps straight to a zone.", 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    zoneCycle = btn
+    ns.zoneDropdownStyle = "cycle button (Blizzard dropdown template not found)"
+end
+
+local function BuildZoneControl(f, x, y)
+    local label = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("TOPLEFT", x, y)
+    label:SetText("Customer zone:")
+    label:SetTextColor(C.header[1], C.header[2], C.header[3])
+    if not BuildZoneDropdown(f, label) then
+        BuildZoneCycleButton(f, label)
+    end
+    RefreshZoneControl()
+end
+
+-- ------------------------------------------------------------
 -- Frame construction
 -- ------------------------------------------------------------
 local function MakeCheck(parent, label, key, x, y)
@@ -248,8 +345,9 @@ local function MakeMainFrame()
     close:SetPoint("TOPRIGHT", -4, -4)
     close:SetScript("OnClick", function() ns.SetShownSafe(f, false) end)
 
-    -- Fixed column headers
-    local headerY = -40
+    -- Zone filter row, then the fixed column headers
+    BuildZoneControl(f, SCROLL_LEFT, -26)
+    local headerY = -64
     local headers = {
         { "order", "Order (item wanted)" }, { "prof", "Prof" }, { "zone", "Customer zone" },
         { "writ", "Writ AH" }, { "item", "Item AH" }, { "total", "Total" }, { "cpr", "Cost / rep" },
@@ -426,14 +524,19 @@ function ns.RebuildWindow()
     local y, rowIdx = -4, 0
     local limit = ns.db.rowsPerTier
 
+    local zone = ns.db.zoneFilter
+    local filtered = zone ~= ns.ZONE_ALL
+
     for secIdx, tier in ipairs(ns.TIERS) do
-        local res = ns.TierResults(tier.key)
+        local res = ns.TierResults(tier.key, zone)
         local sec = GetSection(child, secIdx)
 
+        local count = filtered and ("%d of %d orders"):format(res.inZone, #tier.ids)
+                               or ("%d orders"):format(#tier.ids)
         sec.title:ClearAllPoints()
         sec.title:SetPoint("TOPLEFT", COLS.rank.x, y)
-        sec.title:SetText(("|cff%s%s|r   |cffa8987a%d rep per order   %d orders|r"):format(
-            Hex(tier.color), tier.key, tier.rep, #tier.ids))
+        sec.title:SetText(("|cff%s%s|r   |cffa8987a%d rep per order   %s|r"):format(
+            Hex(tier.color), tier.key, tier.rep, count))
         sec.title:Show()
 
         local sealed = "Sealed writ: " .. (res.sealedPrice and ns.Coins(res.sealedPrice) or ns.DASH)
@@ -448,7 +551,9 @@ function ns.RebuildWindow()
 
         local b = res.best
         local summary
-        if b then
+        if filtered and res.inZone == 0 then
+            summary = ("|cffaaaaaaNo %s orders are delivered in %s.|r"):format(tier.key, ns.ZoneLabel(zone))
+        elseif b then
             summary = ("Cheapest: |cffffd100%s|r  %s total, |cffffd100%s|r per rep%s"):format(
                 ns.OrderName(b), ns.Coins(b.total), ns.Coins(b.perRep),
                 b.writ.zone and ("  |cffa8987a(" .. b.writ.zone .. ")|r") or "")

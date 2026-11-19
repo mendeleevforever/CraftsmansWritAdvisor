@@ -7,12 +7,15 @@ local addonName, ns = ...
 -- from the 1.60.1 game files as listed by warcraftmaps.com
 -- (data updated 17 Nov 2026). Tier is set by writ ID range,
 -- which matches the tier tables on wow.gg and conquestcapped.com.
--- Customers are from conquestcapped.com (15 Nov 2026); a zone
--- ending in "?" is a player report without a confirmed NPC.
+-- Customers are from conquestcapped.com (15 Nov 2026), with four
+-- updates from the Icy Veins quest database and a Wowhead player
+-- comment (checked 18 Nov 2026). A zone ending in "?" is a player
+-- report without a confirmed NPC.
 -- Every order wants one item except Crafted Solid Shot (x200).
 --
--- Four requested items have no item record in the game files
--- (item = nil). Fix them in game with /cwa setitem.
+-- Four writs ask for an item whose name differs from the writ
+-- name; itemName holds the item's real name for display and
+-- Auction House searches before the client has cached it.
 -- ============================================================
 
 ns.TIERS = {
@@ -28,14 +31,14 @@ ns.TIERS = {
 
 ns.WRITS = {}
 
--- W(writID, itemID, qty, profession, skill, item name, zone, customer)
-local function W(id, item, qty, prof, skill, name, zone, npc)
+-- W(writID, itemID, qty, profession, skill, writ name, zone, customer [, item name])
+local function W(id, item, qty, prof, skill, name, zone, npc, itemName)
     ns.WRITS[id] = { id = id, item = item, qty = qty, prof = prof, skill = skill,
-                     name = name, zone = zone, npc = npc }
+                     name = name, zone = zone, npc = npc, itemName = itemName }
 end
 
 -- ── JOURNEYMAN (75 rep) ─────────────────────────────────────
-W(264011,   nil,   1, "Alch", 175, "Elixir of Ogre's Strength",     "Alterac Mountains",    "Sos'mol")
+W(264011,  3391,   1, "Alch", 175, "Elixir of Ogre's Strength",     "Alterac Mountains",    "Sos'mol", "Elixir of Ogre Strength")
 W(264012,  3383,   1, "Alch", 120, "Elixir of Wisdom",              "Arathi Highlands",     "Muggol Breezebeard")
 W(264013,  3385,   1, "Alch", 145, "Lesser Mana Potion",            "Ashenvale",            "Ash'alari")
 W(264014,  6048,   1, "Alch", 135, "Shadow Protection Potion",      "Duskwood",             "Kzixx")
@@ -44,7 +47,7 @@ W(264016,  3390,   1, "Alch", 140, "Elixir of Lesser Agility",      "Stonetalon 
 W(264017,  3388,   1, "Alch", 150, "Lesser Troll's Blood Elixir",   "Stranglethorn Vale",   "Short John Mithril")
 W(264018,  8951,   1, "Alch", 215, "Elixir of Defense",             "Thousand Needles",     "Rizzle Brassbolts")
 W(264019,  5996,   1, "Alch", 120, "Draught of Water Breathing",    "Wetlands",             "Kixxle")
-W(264020,   nil,   1, "BS",   115, "Pearl-Handled Dagger",          "Alterac Mountains",    "Alan Sneeks")
+W(264020,  5540,   1, "BS",   115, "Pearl-Handled Dagger",          "Alterac Mountains",    "Alan Sneeks", "Pearl-handled Dagger")
 W(264021, 11128,   1, "BS",   130, "Golden Rod",                    "Arathi Highlands",     "Muggol Breezebeard")
 W(264022,  5541,   1, "BS",   115, "Iridescent Hammer",             "Ashenvale",            "Cowardly Peon")
 W(264023, 15869,   1, "BS",    75, "Silver Skeleton Key",           "Duskwood",             "Battered Trunk (crypt)")
@@ -115,7 +118,7 @@ W(264085, 10560,   1, "Eng",  200, "Unstable Trigger",              "Moonglade",
 W(264086,  4852,   1, "Eng",  185, "Flash Bomb",                    "Riverglades",          "Spek")
 W(264087, 10500,   1, "Eng",  225, "Fire Goggles",                  "Searing Gorge",        "Durganon")
 W(264088, 10514,   1, "Eng",  215, "Mithril Frag Bomb",             "Swamp of Sorrows",     "Bullets Bigblast")
-W(264089,   nil,   1, "Eng",  175, "Gyromatic Micro-Adjuster",      "Tanaris",              "Jhordy Lapforge")
+W(264089, 10498,   1, "Eng",  175, "Gyromatic Micro-Adjuster",      "Tanaris",              "Jhordy Lapforge", "Gyromatic Micro-Adjustor")
 W(264090, 11590,   1, "Eng",  200, "Mechanical Repair Kit",         "The Hinterlands",      "Rhapsody Shindigger")
 W(264091, 16005,   1, "Eng",  285, "Dark Iron Bomb",                nil,                    nil)
 W(264092,  8174,   1, "LW",   175, "Comfortable Leather Hat",       "Badlands",             "Garek")
@@ -134,7 +137,7 @@ W(264104, 10050,   1, "Tail", 205, "Mageweave Bag",                 "Badlands", 
 W(264105, 10023,   1, "Tail", 205, "Shadoweave Gloves",             "Desolace",             "Willow")
 W(264106,  7063,   1, "Tail", 170, "Crimson Silk Robe",             "Dustwallow Marsh",     "Tabetha")
 W(264107, 10004,   1, "Tail", 195, "Shadoweave Robe",               "Felwood",              "Eridan Bluewind")
-W(264108, 22246,   1, "Tail", 190, "Enchanted Mageweave Pouch",     "Felwood?",             nil)
+W(264108, 22246,   1, "Tail", 190, "Enchanted Mageweave Pouch",     "Felwood",              "Impsy")
 W(264109,  4329,   1, "Tail", 165, "Star Belt",                     "Moonglade",            "Mylentha Riverbend")
 W(264110,  9998,   1, "Tail", 185, "Black Mageweave Vest",          "Riverglades",          "Spek")
 W(264111, 10009,   1, "Tail", 180, "Red Mageweave Pants",           "Searing Gorge",        "Lookout Captain Lolo Longstriker")
@@ -144,14 +147,14 @@ W(264114, 10042,   1, "Tail", 205, "Cindercloth Robe",              "The Hinterl
 W(264115,  7061,   1, "Tail", 160, "Earthen Silk Belt",             "Un'Goro Crater",       "Petra Grossen")
 
 -- ── ARTISAN (200 rep) ───────────────────────────────────────
-W(264116,   nil,   1, "Alch", 265, "Potion of Demonslaying",        "Azshara",              "Archmage Xylem")
+W(264116,  9224,   1, "Alch", 265, "Potion of Demonslaying",        "Azshara",              "Archmage Xylem", "Potion of Demon Slaying")
 W(264117, 12190,   1, "Alch", 245, "Dreamless Sleep Potion",        "Blasted Lands",        "Kum'isha the Collector")
 W(264118, 13457,   1, "Alch", 290, "Greater Fire Protection Potion", nil,                   nil)
 W(264119,  9233,   1, "Alch", 265, "Draught of Detect Demon",       "Deadwind Pass",        "Hastings")
 W(264120,  9088,   1, "Alch", 240, "Gift of Arthas",                "Eastern Plaguelands",  "Adon")
 W(264121, 13513,   1, "Alch", 300, "Flask of Chromatic Resistance", nil,                    nil)
 W(264122,  3387,   1, "Alch", 250, "Limited Invulnerability Potion", nil,                   nil)
-W(264123, 18253,   1, "Alch", 300, "Major Rejuvenation Potion",     nil,                    nil)
+W(264123, 18253,   1, "Alch", 300, "Major Rejuvenation Potion",     "Western Plaguelands",  "Kirala Fairgrass")
 W(264124, 246948,  1, "Alch", 250, "Distilled Firewater",           nil,                    nil)
 W(264125, 12417,   1, "BS",   270, "Radiant Circlet",               nil,                    nil)
 W(264126, 12416,   1, "BS",   235, "Radiant Belt",                  "Blasted Lands",        "Kum'isha the Collector")
@@ -179,7 +182,7 @@ W(264147, 15084,   1, "LW",   240, "Wicked Leather Bracers",        "Eastern Pla
 W(264148, 15075,   1, "LW",   265, "Chimeric Vest",                 nil,                    nil)
 W(264149, 15080,   1, "LW",   270, "Heavy Scorpid Helm",            nil,                    nil)
 W(264150, 15092,   1, "LW",   250, "Runic Leather Bracers",         "Western Plaguelands",  "Fallen Adventurer")
-W(264151, 15071,   1, "LW",   250, "Frostsaber Boots",              nil,                    nil)
+W(264151, 15071,   1, "LW",   250, "Frostsaber Boots",              "Winterspring?",        nil)
 W(264152, 14130,   1, "Tail", 260, "Wizardweave Turban",            nil,                    nil)
 W(264153, 14046,   1, "Tail", 215, "Runecloth Bag",                 "Blasted Lands",        "Kum'isha the Collector")
 W(264154, 13864,   1, "Tail", 235, "Runecloth Boots",               "Burning Steppes",      "Gorzeeki Wildeyes")
@@ -188,7 +191,7 @@ W(264156, 14108,   1, "Tail", 240, "Felcloth Boots",                nil,        
 W(264157, 22251,   1, "Tail", 230, "Cenarion Herb Bag",             nil,                    nil)
 W(264158, 10025,   1, "Tail", 200, "Shadoweave Mask",               "Silithus",             "Hermit Ortell")
 W(264159, 14141,   1, "Tail", 225, "Ghostweave Vest",               nil,                    nil)
-W(264160, 21340,   1, "Tail", 215, "Soul Pouch",                    "Winterspring?",        nil)
+W(264160, 21340,   1, "Tail", 215, "Soul Pouch",                    "Winterspring",         "Zelizax")
 
 -- ============================================================
 -- Derived lookups
@@ -201,6 +204,8 @@ ns.TIER_BY_KEY   = {}
 ns.SEALED        = {}   -- [sealed writ itemID] = tier key
 ns.QUEST_TO_WRIT = {}   -- [questID] = writID
 ns.TRACKED_ITEMS = {}   -- every item ID whose cached name or price matters
+ns.ZONE_ALL      = "ALL"
+ns.ZONE_UNKNOWN  = "UNKNOWN"
 
 for _, tier in ipairs(ns.TIERS) do
     ns.TIER_BY_KEY[tier.key] = tier
@@ -218,4 +223,38 @@ for _, tier in ipairs(ns.TIERS) do
             tier.ids[#tier.ids + 1] = id
         end
     end
+end
+
+-- Customer zones for the filter. "Badlands?" files under Badlands;
+-- writs with no known customer file under ZONE_UNKNOWN.
+local zoneCounts = {}
+for _, w in pairs(ns.WRITS) do
+    if w.zone then
+        w.zoneKey = w.zone:gsub("%?$", "")
+        w.zoneReported = w.zoneKey ~= w.zone
+    else
+        w.zoneKey = ns.ZONE_UNKNOWN
+    end
+    zoneCounts[w.zoneKey] = (zoneCounts[w.zoneKey] or 0) + 1
+end
+
+ns.ZONES = {}           -- sorted { key, label, count }, unknown last
+for key, count in pairs(zoneCounts) do
+    if key ~= ns.ZONE_UNKNOWN then
+        ns.ZONES[#ns.ZONES + 1] = { key = key, label = key, count = count }
+    end
+end
+table.sort(ns.ZONES, function(a, b) return a.label < b.label end)
+if zoneCounts[ns.ZONE_UNKNOWN] then
+    ns.ZONES[#ns.ZONES + 1] = { key = ns.ZONE_UNKNOWN, label = "Unknown customer",
+                                count = zoneCounts[ns.ZONE_UNKNOWN] }
+end
+
+ns.ZONE_BY_KEY = {}
+for _, z in ipairs(ns.ZONES) do ns.ZONE_BY_KEY[z.key] = z end
+
+function ns.ZoneLabel(key)
+    if key == nil or key == ns.ZONE_ALL then return "All zones" end
+    local z = ns.ZONE_BY_KEY[key]
+    return z and z.label or key
 end

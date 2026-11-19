@@ -2,7 +2,7 @@
 ## Title: Craftsman's Writ Advisor
 ## Notes: Ranks every Craftsman's Writ by total cost per reputation, using Auctionator prices. /cwa
 ## Author: MendeleevForever
-## Version: 0.1.0
+## Version: 0.2.0
 ## Category: Professions
 ## IconTexture: 134327
 ## SavedVariables: CraftsmansWritAdvisorDB

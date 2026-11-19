@@ -1,6 +1,6 @@
 # Craftsman's Writ Advisor
 
-**Version 0.1.0** · by MendeleevForever · for World of Warcraft: Forever
+**Version 0.2.0** · by MendeleevForever · for World of Warcraft: Forever
 
 Find the cheapest Craftsman's Writ to complete in each tier, using the prices from your Auctionator scans.
 
@@ -9,6 +9,7 @@ Find the cheapest Craftsman's Writ to complete in each tier, using the prices fr
 - Lists every Journeyman, Expert and Artisan order with its full cost: the writ's price plus the price of the item the order asks for.
 - Ranks the orders in each tier by cost per reputation point and marks the three cheapest with gold, silver and copper medals.
 - Greys out orders you have already delivered today, since each order only gives reputation once per day.
+- Filters the list to one customer zone, so you can see the cheapest orders to deliver on a single trip.
 - Adds cost details to writ tooltips. Sealed writs show the average cost of the order you might get when you open one.
 - Searches Auctionator for a writ and its item with one click while the Auction House is open.
 
@@ -18,7 +19,7 @@ Find the cheapest Craftsman's Writ to complete in each tier, using the prices fr
 
 ## Installation
 
-1. Download `CraftsmansWritAdvisor-0.1.0.zip` and extract it.
+1. Download `CraftsmansWritAdvisor-0.2.0.zip` and extract it.
 2. Copy the `CraftsmansWritAdvisor` folder into your AddOns folder:
    - Live: `World of Warcraft\_forever_\Interface\AddOns\`
    - Beta: `World of Warcraft\_classic_beta_\Interface\AddOns\`
@@ -55,6 +56,16 @@ Each tier's heading also shows the price of a sealed writ and the average item c
 | Zone with `?` | The customer's zone was reported by players but not confirmed |
 | ID? | The item this order asks for is not known yet (see below) |
 
+### Customer zone filter
+
+The **Customer zone** menu at the top of the window shows only the orders delivered in one zone. The number next to each zone is how many orders go there.
+
+- Medals and ranks are worked out within the zone you pick, so the gold coin marks the cheapest order to deliver there.
+- Orders whose customer was reported by players but not confirmed (`zone?`) are included under that zone.
+- **Unknown customer** gathers the orders nobody has found the customer for yet.
+- The sealed writ price and average in each tier heading, writ tooltips, and the minimap menu always cover every zone.
+- The addon remembers your choice. Pick **All zones** to see everything again.
+
 ### Clicking a row
 
 - **Hover** to see the full cost breakdown and the customer's name.
@@ -74,7 +85,10 @@ The checkboxes at the bottom of the window:
 | Command | What it does |
 |---|---|
 | `/cwa` | Open or close the list |
-| `/cwa best` | Print the cheapest order of each tier in chat |
+| `/cwa best` | Print the cheapest order of each tier in chat (in the chosen zone, if you picked one) |
+| `/cwa zone` | List every customer zone and how many orders go there |
+| `/cwa zone <name>` | Show one zone, for example `/cwa zone tanaris` or `/cwa zone stonetalon` |
+| `/cwa zone all` | Show every zone again |
 | `/cwa rows <number>` | Show this many orders per tier (`/cwa rows all` shows every order) |
 | `/cwa done` | Hide or show orders delivered today |
 | `/cwa owned` | Count owned writs and items as free, or not |
@@ -92,8 +106,11 @@ The checkboxes at the bottom of the window:
 **Every price says "no price" or a dash.**
 Auctionator has no data yet. Open the Auction House, run an Auctionator scan, then press **Refresh** in the window.
 
-**An order shows "ID?" in the item column.**
-Four orders ask for an item the addon doesn't know yet: Elixir of Ogre's Strength, Pearl-Handled Dagger, Gyromatic Micro-Adjuster and Potion of Demonslaying. When you find the item, type `/cwa setitem`, then shift-click the writ and then the item into the chat box, and press Enter. If the order wants more than one, add the count at the end.
+**An order shows "ID?" in the item column, or the wrong item.**
+You can tell the addon which item an order asks for. Type `/cwa setitem`, then shift-click the writ and then the item into the chat box, and press Enter. If the order wants more than one, add the count at the end. `/cwa clear` followed by the writ undoes it.
+
+**Why does an order have no customer zone?**
+Players haven't found that customer yet. These orders appear under **Unknown customer** in the zone menu. Hovering the row still shows everything else about the order.
 
 **Why is an order I own greyed out?**
 You already delivered that order today. Each order gives reputation once per day, and you can deliver it again after the daily reset.
